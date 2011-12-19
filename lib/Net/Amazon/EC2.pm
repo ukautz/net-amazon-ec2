@@ -1687,7 +1687,8 @@ Returns an array ref of Net::Amazon::EC2::ReservationInfo objects
 sub describe_instances {
 	my $self = shift;
 	my %args = validate( @_, {
-		InstanceId => { type => SCALAR | ARRAYREF, optional => 1 },
+		InstanceId	=> { type => SCALAR | ARRAYREF, optional => 1 },
+		Filter		=> { Type => HASHREF, optional => 1 }
 	});
 	
 	# If we have a array ref of instances lets split them out into their InstanceId.n format
@@ -1698,6 +1699,24 @@ sub describe_instances {
 			$args{"InstanceId." . $count} = $instance_id;
 			$count++;
 		}
+	}
+	
+	# Having filter?
+	if ( ref( $args{ Filter } ) ) {
+		my $count = 1;
+		foreach my $name( sort keys %{ $args{ Filter } } ) {
+			( my $name_out = $name ) =~ s/(?<!^)([A-Z])/'-'. lc($1)/eg; # de-camelize
+			$args{ "Filter.$count.Name" } = lc( $name_out );
+			my @vals = ref( $args{ Filter }->{ $name } ) ? @{ $args{ Filter }->{ $name } } : ( $args{ Filter }->{ $name } );
+			if ( @vals > 1 ) {
+				my $scount = 1;
+				$args{ "Filter.$count.Value.". $scount++ } = $_ for @vals;
+			}
+			else {
+				$args{ "Filter.$count.Value" } = $vals[0];
+			}
+		}
+		delete $args{ Filter };
 	}
 	
 	my $xml = $self->_sign(Action  => 'DescribeInstances', %args);
