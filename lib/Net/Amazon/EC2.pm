@@ -1705,16 +1705,18 @@ sub describe_instances {
 	if ( ref( $args{ Filter } ) ) {
 		my $count = 1;
 		foreach my $name( sort keys %{ $args{ Filter } } ) {
-			( my $name_out = $name ) =~ s/(?<!^)([A-Z])/'-'. lc($1)/eg; # de-camelize
-			$args{ "Filter.$count.Name" } = lc( $name_out );
+			
 			my @vals = ref( $args{ Filter }->{ $name } ) ? @{ $args{ Filter }->{ $name } } : ( $args{ Filter }->{ $name } );
-			if ( @vals > 1 ) {
-				my $scount = 1;
-				$args{ "Filter.$count.Value.". $scount++ } = $_ for @vals;
+			my $vcount = 1;
+			$args{ "Filter.$count.Value.". $vcount++ } = $_ for @vals;
+			
+			unless( index( $name, 'tag:' ) == 0 ) {
+				$name =~ s/(?<!^)([A-Z])/'-'. lc($1)/eg; # de-camelize
+				$name = lc( $name );
 			}
-			else {
-				$args{ "Filter.$count.Value" } = $vals[0];
-			}
+			$args{ "Filter.$count.Name" } = $name;
+			
+			
 		}
 		delete $args{ Filter };
 	}
