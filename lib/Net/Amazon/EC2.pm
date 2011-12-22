@@ -1702,24 +1702,7 @@ sub describe_instances {
 	}
 	
 	# Having filter?
-	if ( ref( $args{ Filter } ) ) {
-		my $count = 1;
-		foreach my $name( sort keys %{ $args{ Filter } } ) {
-			
-			my @vals = ref( $args{ Filter }->{ $name } ) ? @{ $args{ Filter }->{ $name } } : ( $args{ Filter }->{ $name } );
-			my $vcount = 1;
-			$args{ "Filter.$count.Value.". $vcount++ } = $_ for @vals;
-			
-			unless( index( $name, 'tag:' ) == 0 ) {
-				$name =~ s/(?<!^)([A-Z])/'-'. lc($1)/eg; # de-camelize
-				$name = lc( $name );
-			}
-			$args{ "Filter.$count.Name" } = $name;
-			
-			
-		}
-		delete $args{ Filter };
-	}
+	$self->_apply_filters( \%args );
 	
 	my $xml = $self->_sign(Action  => 'DescribeInstances', %args);
 	my $reservations;
@@ -2502,6 +2485,7 @@ sub describe_volumes {
 	my $self = shift;
 	my %args = validate( @_, {
 		VolumeId	=> { type => ARRAYREF | SCALAR, optional => 1 },
+		Filter		=> { type => HASHREF, optional => 1 },
 	});
 
 	# If we have a array ref of volumes lets split them out into their Volume.n format
@@ -2513,6 +2497,10 @@ sub describe_volumes {
 			$count++;
 		}
 	}
+	
+	
+	# Filter?
+	$self->_apply_filters( \%args );
 	
 	my $xml = $self->_sign(Action  => 'DescribeVolumes', %args);
 
@@ -2573,6 +2561,14 @@ The name of the Filter.Name to be described. Can be either a scalar or an array 
 
 The name of the Filter.Value to be described. Can be either a scalar or an array ref.
 
+=item ResourceId
+
+The AWS resource id
+
+=item ResourceType
+
+The AWS resource type (customer-gateway | dhcp-options | image | instance | internet-gateway | network-acl | reserved-instances | route-table | security-group | snapshot | spot-instances-request | subnet | volume | vpc | vpn-connection | vpn-gateway)
+
 =back
 
 Returns an array ref of Net::Amazon::EC2::DescribeTags objects
@@ -2582,10 +2578,12 @@ Returns an array ref of Net::Amazon::EC2::DescribeTags objects
 sub describe_tags {
 	my $self = shift;
 	my %args = validate( @_, {
-		'Filter.Name'				=> { type => ARRAYREF | SCALAR },
-		'Filter.Value'				=> { type => ARRAYREF | SCALAR },
+		Filter			=> { type => HASHREF, optional => 1 },
+		'Filter.Name'	=> { type => ARRAYREF | SCALAR, optional => 1 },
+		'Filter.Value'	=> { type => ARRAYREF | SCALAR, optional => 1 },
 	});
 
+	my $other_count = 0;
 	if (ref ($args{'Filter.Name'}) eq 'ARRAY') {
 		my $keys			= delete $args{'Filter.Name'};
 		my $count			= 1;
@@ -2593,6 +2591,7 @@ sub describe_tags {
 			$args{"Filter." . $count . ".Name"} = $key;
 			$count++;
 		}
+		$other_count = $count;
 	}
 	if (ref ($args{'Filter.Value'}) eq 'ARRAY') {
 		my $keys			= delete $args{'Filter.Value'};
@@ -2601,8 +2600,11 @@ sub describe_tags {
 			$args{"Filter." . $count . ".Value"} = $key;
 			$count++;
 		}
+		$other_count = $count if $count > $other_count;
 	}
-
+	
+	$self->_apply_filters( \%args, $other_count + 1 );
+	
 	my $xml = $self->_sign(Action  => 'DescribeTags', %args);
 
 	if ( grep { defined && length } $xml->{Errors} ) {
@@ -4076,6 +4078,31 @@ sub unmonitor_instances {
  		
  		return $monitored_instances;
 	}
+}
+
+
+sub _apply_filters {
+	my ( $self, $args_ref, $start_count ) = @_;
+	
+	# Having filter?
+	if ( ref( $args_ref->{ Filter } ) ) {
+		my $count = $start_count ? $start_count : 1;
+		foreach my $name( sort keys %{ $args_ref->{ Filter } } ) {
+			
+			my @vals = ref( $args_ref->{ Filter }->{ $name } ) ? @{ $args_ref->{ Filter }->{ $name } } : ( $args_ref->{ Filter }->{ $name } );
+			my $vcount = 1;
+			$args_ref->{ "Filter.$count.Value.". $vcount++ } = $_ for @vals;
+			
+			unless( index( $name, 'tag:' ) == 0 ) {
+				$name =~ s/(?<!^)([A-Z])/'-'. lc($1)/eg; # de-camelize
+				$name = lc( $name );
+			}
+			$args_ref->{ "Filter.$count.Name" } = $name;
+		}
+		delete $args_ref->{ Filter };
+	}
+	
+	return ;
 }
 
 no Moose;
